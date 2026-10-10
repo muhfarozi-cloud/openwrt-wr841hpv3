@@ -1,0 +1,89 @@
+name: Build OpenWrt 22.03.7 - TL-WR841HP v3
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "99-custom-config.sh"
+      - ".github/workflows/build-openwrt.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openwrt-22037-wr841hp-v3
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      OPENWRT_VERSION: "22.03.7"
+      TARGET: "ath79/generic"
+      PROFILE: "tplink_tl-wr841hp-v3"
+      IB_NAME: "openwrt-imagebuilder-22.03.7-ath79-generic.Linux-x86_64"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache ecj fastjar file g++ gawk gettext \
+            git java-propose-classpath libelf-dev libncurses5-dev \
+            libncursesw5-dev libssl-dev python3 python3-distutils \
+            python3-setuptools rsync subversion swig time unzip wget \
+            xsltproc zlib1g-dev
+
+      - name: Verify custom configuration
+        run: |
+          test -s 99-custom-config.sh || {
+            echo "::error::File 99-custom-config.sh tidak ditemukan di root repository atau kosong."
+            exit 1
+          }
+          chmod +x 99-custom-config.sh
+          bash -n 99-custom-config.sh
+
+      - name: Download and extract ImageBuilder
+        run: |
+          URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${TARGET}/${IB_NAME}.tar.xz"
+          wget --https-only --tries=3 --timeout=30 "$URL" -O imagebuilder.tar.xz
+          tar -xJf imagebuilder.tar.xz
+          test -d "$IB_NAME"
+
+      - name: Build firmware with ImageBuilder
+        working-directory: .
+        run: |
+          mkdir -p "$IB_NAME/files/etc/uci-defaults"
+          install -m 0755 99-custom-config.sh "$IB_NAME/files/etc/uci-defaults/99-custom-config.sh"
+
+          cd "$IB_NAME"
+          make info | grep -A3 -B2 "$PROFILE" || true
+          make image \
+            PROFILE="$PROFILE" \
+            PACKAGES="luci-light luci-theme-bootstrap opennds" \
+            FILES="files"
+
+      - name: Collect firmware and checksums
+        run: |
+          mkdir -p dist
+          find "$IB_NAME/bin/targets/$TARGET" -maxdepth 1 -type f \
+            \( -name "*$PROFILE*sysupgrade.bin" -o -name "*$PROFILE*factory.bin" -o -name "*manifest" \) \
+            -exec cp -v {} dist/ \;
+          test -n "$(find dist -maxdepth 1 -type f -print -quit)" || {
+            echo "::error::Tidak ada image yang cocok ditemukan. Periksa profile dan output ImageBuilder."
+            find "$IB_NAME/bin/targets/$TARGET" -maxdepth 2 -type f -print
+            exit 1
+          }
+          (cd dist && sha256sum * > SHA256SUMS)
+          ls -lh dist
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-22.03.7-tl-wr841hp-v3
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
