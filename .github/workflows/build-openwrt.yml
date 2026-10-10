@@ -45,6 +45,7 @@ jobs:
           }
           chmod +x 99-custom-config.sh
           bash -n 99-custom-config.sh
+          sh -n 99-custom-config.sh
 
       - name: Download and extract ImageBuilder
         run: |
@@ -54,7 +55,6 @@ jobs:
           test -d "$IB_NAME"
 
       - name: Build firmware with ImageBuilder
-        working-directory: .
         run: |
           mkdir -p "$IB_NAME/files/etc/uci-defaults"
           install -m 0755 99-custom-config.sh "$IB_NAME/files/etc/uci-defaults/99-custom-config.sh"
@@ -63,7 +63,7 @@ jobs:
           make info | grep -A3 -B2 "$PROFILE" || true
           make image \
             PROFILE="$PROFILE" \
-            PACKAGES="luci-light luci-theme-bootstrap opennds" \
+            PACKAGES="luci-base luci-mod-admin-full luci-theme-bootstrap opennds" \
             FILES="files"
 
       - name: Collect firmware and checksums
