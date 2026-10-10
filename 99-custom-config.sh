@@ -10,28 +10,28 @@ lan_ip_address="192.168.100.1"
 
 # 1. Set OpenNDS dalam keadaan OFF (Disabled)
 if [ -f /etc/config/opennds ]; then
-    uci set opennds.@opennds[0].enabled='0'
+    uci set 'opennds.@opennds[0].enabled=0'
     uci commit opennds
 fi
 /etc/init.d/opennds disable 2>/dev/null || true
 
 # 2. Ganti Password Root
 if [ -n "$root_password" ]; then
-  (echo "$root_password"; sleep 1; echo "$root_password") | passwd > /dev/null
+    (printf '%s\n' "$root_password"; sleep 1; printf '%s\n' "$root_password") | passwd >/dev/null
 fi
 
 # 3. Konfigurasi Nama Host & Waktu
 if [ -n "$host_name" ] && [ -n "$time_zone" ] && [ -n "$zone_name" ]; then
-    uci set system.@system[0].hostname="$host_name"
-    uci set system.@system[0].timezone="$time_zone"
-    uci set system.@system[0].zonename="$zone_name"
+    uci set "system.@system[0].hostname=$host_name"
+    uci set "system.@system[0].timezone=$time_zone"
+    uci set "system.@system[0].zonename=$zone_name"
     uci commit system
 fi
 
 # 4. Konfigurasi LAN (IP Address)
 if [ -n "$lan_ip_address" ]; then
-  uci set network.lan.ipaddr="$lan_ip_address"
-  uci commit network
+    uci set "network.lan.ipaddr=$lan_ip_address"
+    uci commit network
 fi
 
 # 5. Konfigurasi LED
@@ -50,14 +50,14 @@ uci set system.led_wifi.default='0'
 uci commit system
 
 # 6. Konfigurasi WLAN
-if [ -n "$wlan_name" -a -n "$wlan_password" -a ${#wlan_password} -ge 8 ]; then
-  uci set wireless.@wifi-device[0].disabled='0'
-  uci set wireless.@wifi-device[0].country='CA'
-  uci set wireless.@wifi-iface[0].disabled='0'
-  uci set wireless.@wifi-iface[0].encryption='psk2'
-  uci set wireless.@wifi-iface[0].ssid="$wlan_name"
-  uci set wireless.@wifi-iface[0].key="$wlan_password"
-  uci commit wireless
+if [ -n "$wlan_name" ] && [ -n "$wlan_password" ] && [ "${#wlan_password}" -ge 8 ]; then
+    uci set 'wireless.@wifi-device[0].disabled=0'
+    uci set 'wireless.@wifi-device[0].country=CA'
+    uci set 'wireless.@wifi-iface[0].disabled=0'
+    uci set 'wireless.@wifi-iface[0].encryption=psk2'
+    uci set "wireless.@wifi-iface[0].ssid=$wlan_name"
+    uci set "wireless.@wifi-iface[0].key=$wlan_password"
+    uci commit wireless
 fi
 
 exit 0
